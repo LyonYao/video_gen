@@ -1,0 +1,22 @@
+{
+  "name": "video-ai-poc",
+  "version": "1.0.0",
+  "description": "Video AI POC - Generate videos from ideas using AWS Bedrock",
+  "main": "src/handler.js",
+  "scripts": {
+    "deploy": "serverless deploy",
+    "remove": "serverless remove",
+    "logs": "serverless logs -f generatePrompts -t",
+    "logs:video": "serverless logs -f generateVideo -t",
+    "invoke": "serverless invoke -f generatePrompts -p test-event.json",
+    "info": "serverless info"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.679.0",
+    "@aws-sdk/client-s3": "^3.679.0",
+    "@aws-sdk/client-lambda": "^3.679.0"
+  },
+  "devDependencies": {
+    "serverless": "^3.38.0"
+  }
+}

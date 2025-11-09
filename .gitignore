@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Serverless
+.serverless/
+.serverless_plugins/
+
+# Environment
+.env
+.env.local
+
+# AWS
+.aws-sam/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

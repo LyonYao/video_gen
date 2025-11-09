@@ -1,0 +1,121 @@
+service: video-ai-poc
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: us-east-1  # Bedrock Nova Video 支持的区域
+  stage: ${opt:stage, 'dev'}  # 默认使用dev环境
+  timeout: 900  # 15分钟超时（视频生成可能需要时间）
+  memorySize: 512
+  
+  iam:
+    role:
+      statements:
+        # Bedrock 权限（允许所有区域和模型）
+        - Effect: Allow
+          Action:
+            - bedrock:InvokeModel
+            - bedrock:InvokeModelWithResponseStream
+          Resource: '*'
+        
+        # S3 权限
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:PutObjectAcl
+          Resource: 
+            - arn:aws:s3:::${self:custom.bucketName}/*
+        
+        # CloudWatch Logs
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource: '*'
+        
+        # Lambda 调用权限（用于异步调用视频生成函数）
+        - Effect: Allow
+          Action:
+            - lambda:InvokeFunction
+          Resource: 
+            - arn:aws:lambda:${self:provider.region}:*:function:${self:service}-${self:provider.stage}-generateVideo
+
+  environment:
+    S3_BUCKET: ${self:custom.bucketName}
+    BEDROCK_REGION: us-east-1
+    VIDEO_FUNCTION_NAME: ${self:service}-${self:provider.stage}-generateVideo
+
+package:
+  patterns:
+    - '!.git/**'
+    - '!.gitignore'
+    - '!README.md'
+    - '!.serverless/**'
+    - '!test-*.json'
+    - '!deploy.*'
+    - '!check-bedrock-access.*'
+    - '!部署所需权限清单.json'
+
+custom:
+  bucketName: video-ai-poc-${self:provider.stage}-${aws:accountId}
+
+functions:
+  # 函数1: 生成提示词（快速，1分钟内完成）
+  generatePrompts:
+    handler: src/handler.generatePrompts
+    description: 生成视频提示词并选择最佳方案
+    timeout: 120  # 2分钟足够
+    memorySize: 512
+  
+  # 函数2: 生成视频（慢速，可能超过15分钟）
+  generateVideo:
+    handler: src/handler.generateVideo
+    description: 根据提示词生成视频
+    timeout: 900  # 15分钟
+    memorySize: 512
+    # 可以被异步调用，即使超时也会重试
+
+resources:
+  Resources:
+    # S3 存储桶
+    VideoBucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: ${self:custom.bucketName}
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+        CorsConfiguration:
+          CorsRules:
+            - AllowedOrigins:
+                - '*'
+              AllowedMethods:
+                - GET
+                - HEAD
+              AllowedHeaders:
+                - '*'
+              MaxAge: 3000
+
+    # S3 桶策略（允许公开读取）
+    VideoBucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref VideoBucket
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal: '*'
+              Action: 's3:GetObject'
+              Resource: !Sub '${VideoBucket.Arn}/*'
+
+  Outputs:
+    VideoBucketName:
+      Value: !Ref VideoBucket
+      Description: S3 bucket for generated videos
+    
+    LambdaFunctionName:
+      Value: !Ref GenerateVideoLambdaFunction
+      Description: Lambda function name for testing
